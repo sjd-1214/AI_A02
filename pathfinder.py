@@ -66,13 +66,82 @@ class SearchAlgorithm:
         self.nodes_visited = 0
 
     def gbfs(self, start, goal):
-        pass
+        self.visited = set()
+        self.frontier_set = set()
+        self.came_from = {}
+        self.nodes_visited = 0
+        frontier = []
+        heapq.heappush(frontier, (self.heuristic(start, goal), start))
+        self.frontier_set.add(start)
+        self.came_from[start] = None
+
+        while frontier:
+            _, current = heapq.heappop(frontier)
+            self.frontier_set.discard(current)
+
+            if current in self.visited:
+                continue
+
+            self.visited.add(current)
+            self.nodes_visited += 1
+
+            if current == goal:
+                return True
+
+            for neighbor in self.grid.get_neighbors(current):
+                if neighbor not in self.visited:
+                    self.came_from[neighbor] = current
+                    heapq.heappush(frontier, (self.heuristic(neighbor, goal), neighbor))
+                    self.frontier_set.add(neighbor)
+
+        return False
 
     def astar(self, start, goal):
-        pass
+        self.visited = set()
+        self.frontier_set = set()
+        self.came_from = {}
+        self.cost_so_far = {}
+        self.nodes_visited = 0
+        frontier = []
+        heapq.heappush(frontier, (0, start))
+        self.frontier_set.add(start)
+        self.came_from[start] = None
+        self.cost_so_far[start] = 0
+
+        while frontier:
+            _, current = heapq.heappop(frontier)
+            self.frontier_set.discard(current)
+
+            if current in self.visited:
+                continue
+
+            self.visited.add(current)
+            self.nodes_visited += 1
+
+            if current == goal:
+                return True
+
+            for neighbor in self.grid.get_neighbors(current):
+                new_cost = self.cost_so_far[current] + 1
+                if neighbor not in self.cost_so_far or new_cost < self.cost_so_far[neighbor]:
+                    self.cost_so_far[neighbor] = new_cost
+                    f = new_cost + self.heuristic(neighbor, goal)
+                    heapq.heappush(frontier, (f, neighbor))
+                    self.frontier_set.add(neighbor)
+                    self.came_from[neighbor] = current
+
+        return False
 
     def reconstruct_path(self, start, goal):
-        pass
+        path = []
+        current = goal
+        while current is not None:
+            path.append(current)
+            current = self.came_from.get(current)
+        path.reverse()
+        if path[0] == start:
+            return path
+        return []
 
 
 class App:
