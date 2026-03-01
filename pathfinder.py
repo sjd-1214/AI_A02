@@ -158,43 +158,205 @@ class App:
         self.setup_ui()
 
     def setup_ui(self):
-        pass
+        control = tk.Frame(self.root)
+        control.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
+
+        tk.Label(control, text="Rows:").pack(side=tk.LEFT)
+        self.rows_var = tk.StringVar(value="15")
+        tk.Entry(control, textvariable=self.rows_var, width=4).pack(side=tk.LEFT)
+
+        tk.Label(control, text="Cols:").pack(side=tk.LEFT)
+        self.cols_var = tk.StringVar(value="15")
+        tk.Entry(control, textvariable=self.cols_var, width=4).pack(side=tk.LEFT)
+
+        tk.Button(control, text="Create", command=self.create_grid).pack(side=tk.LEFT, padx=3)
+
+        tk.Label(control, text="Density:").pack(side=tk.LEFT)
+        self.density_var = tk.StringVar(value="0.3")
+        tk.Entry(control, textvariable=self.density_var, width=4).pack(side=tk.LEFT)
+        tk.Button(control, text="Maze", command=self.generate_maze).pack(side=tk.LEFT, padx=3)
+
+        self.algo_var = tk.StringVar(value="A*")
+        ttk.Combobox(control, textvariable=self.algo_var, values=["A*", "GBFS"], width=5, state="readonly").pack(side=tk.LEFT, padx=3)
+
+        self.heur_var = tk.StringVar(value="Manhattan")
+        ttk.Combobox(control, textvariable=self.heur_var, values=["Manhattan", "Euclidean"], width=9, state="readonly").pack(side=tk.LEFT, padx=3)
+
+        self.dynamic_var = tk.BooleanVar(value=False)
+        tk.Checkbutton(control, text="Dynamic", variable=self.dynamic_var).pack(side=tk.LEFT, padx=3)
+
+        tk.Button(control, text="Start", command=self.start_search).pack(side=tk.LEFT, padx=3)
+        tk.Button(control, text="Reset", command=self.reset).pack(side=tk.LEFT, padx=3)
+
+        self.metrics_label = tk.Label(self.root, text="Nodes: 0 | Cost: 0 | Time: 0 ms")
+        self.metrics_label.pack(side=tk.BOTTOM, fill=tk.X, padx=5, pady=5)
+
+        self.canvas = tk.Canvas(self.root, bg="white")
+        self.canvas.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        self.canvas.bind("<Button-1>", self.on_cell_click)
+
+        self.create_grid()
 
     def create_grid(self):
-        pass
+        rows = int(self.rows_var.get())
+        cols = int(self.cols_var.get())
+        self.grid = Grid(rows, cols)
+        self.canvas.config(width=cols * self.cell_size, height=rows * self.cell_size)
+        self.path = []
+        self.running = False
+        self.draw_grid()
 
     def generate_maze(self):
-        pass
+        if self.grid is None:
+            return
+        density = float(self.density_var.get())
+        self.grid.generate_maze(density)
+        self.path = []
+        self.draw_grid()
 
     def draw_grid(self):
-        pass
+        self.canvas.delete("all")
+        for r in range(self.grid.rows):
+            for c in range(self.grid.cols):
+                x1 = c * self.cell_size
+                y1 = r * self.cell_size
+                x2 = x1 + self.cell_size
+                y2 = y1 + self.cell_size
+                if (r, c) == self.grid.start:
+                    color = "lime"
+                elif (r, c) == self.grid.goal:
+                    color = "red"
+                elif (r, c) in self.grid.walls:
+                    color = "black"
+                else:
+                    color = "white"
+                self.canvas.create_rectangle(x1, y1, x2, y2, fill=color, outline="gray")
 
     def draw_cell(self, r, c, color):
-        pass
+        x1 = c * self.cell_size
+        y1 = r * self.cell_size
+        x2 = x1 + self.cell_size
+        y2 = y1 + self.cell_size
+        self.canvas.create_rectangle(x1, y1, x2, y2, fill=color, outline="gray")
 
     def on_cell_click(self, event):
-        pass
+        if self.grid is None or self.running:
+            return
+        c = event.x // self.cell_size
+        r = event.y // self.cell_size
+        if 0 <= r < self.grid.rows and 0 <= c < self.grid.cols:
+            self.grid.toggle_wall(r, c)
+            self.draw_grid()
 
     def start_search(self):
-        pass
+        if self.grid is None or self.running:
+            return
+        self.running = True
+        self.dynamic_mode = self.dynamic_var.get()
+        if self.heur_var.get() == "Manhattan":
+            h = Heuristics.manhattan
+        else:
+            h = Heuristics.euclidean
+        self.search = SearchAlgorithm(self.grid, h)
+        self.draw_grid()
+        self.run_search()
 
     def run_search(self):
-        pass
+        start = self.grid.start
+        goal = self.grid.goal
+        if self.agent_pos:
+            start = self.agent_pos
+
+        algo = self.algo_var.get()
+        t1 = time.time()
+        if algo == "A*":
+            found = self.search.astar(start, goal)
+        else:
+            found = self.search.gbfs(start, goal)
+        t2 = time.time()
+
+        for node in self.search.visited:
+            if node != self.grid.start and node != self.grid.goal:
+                self.draw_cell(node[0], node[1], "lightblue")
+        for node in self.search.frontier_set:
+            if node != self.grid.start and node != self.grid.goal:
+                self.draw_cell(node[0], node[1], "yellow")
+
+        if found:
+            self.path = self.search.reconstruct_path(start, goal)
+            for node in self.path:
+                if node != self.grid.start and node != self.grid.goal:
+                    self.draw_cell(node[0], node[1], "green")
+            self.update_metrics(self.search.nodes_visited, len(self.path) - 1, (t2 - t1) * 1000)
+            if self.dynamic_mode:
+                self.agent_pos = start
+                self.animate_path()
+            else:
+                self.running = False
+        else:
+            self.update_metrics(self.search.nodes_visited, 0, (t2 - t1) * 1000)
+            self.running = False
 
     def animate_path(self):
-        pass
+        if not self.path:
+            self.running = False
+            return
+        self.agent_pos = self.path.pop(0)
+        self.draw_grid()
+        for node in self.search.visited:
+            if node != self.grid.start and node != self.grid.goal:
+                self.draw_cell(node[0], node[1], "lightblue")
+        for node in self.path:
+            if node != self.grid.start and node != self.grid.goal:
+                self.draw_cell(node[0], node[1], "green")
+        self.draw_cell(self.agent_pos[0], self.agent_pos[1], "orange")
+
+        if self.agent_pos == self.grid.goal:
+            self.running = False
+            return
+
+        self.spawn_dynamic_obstacles()
+        self.root.after(100, self.animate_path)
 
     def spawn_dynamic_obstacles(self):
-        pass
+        blocked = False
+        for r in range(self.grid.rows):
+            for c in range(self.grid.cols):
+                if (r, c) not in self.grid.walls and (r, c) != self.grid.start and (r, c) != self.grid.goal and (r, c) != self.agent_pos:
+                    if random.random() < 0.01:
+                        self.grid.walls.add((r, c))
+                        if (r, c) in self.path:
+                            blocked = True
+        if blocked:
+            self.replan()
 
     def replan(self):
-        pass
+        if self.heur_var.get() == "Manhattan":
+            h = Heuristics.manhattan
+        else:
+            h = Heuristics.euclidean
+        self.search = SearchAlgorithm(self.grid, h)
+        algo = self.algo_var.get()
+        if algo == "A*":
+            found = self.search.astar(self.agent_pos, self.grid.goal)
+        else:
+            found = self.search.gbfs(self.agent_pos, self.grid.goal)
+        if found:
+            self.path = self.search.reconstruct_path(self.agent_pos, self.grid.goal)
+        else:
+            self.path = []
 
     def update_metrics(self, nodes, cost, time_ms):
-        pass
+        self.metrics_label.config(text=f"Nodes: {nodes} | Cost: {cost} | Time: {time_ms:.2f} ms")
 
     def reset(self):
-        pass
+        self.running = False
+        self.path = []
+        self.agent_pos = None
+        if self.grid:
+            self.grid.reset()
+            self.draw_grid()
+        self.update_metrics(0, 0, 0)
 
 
 if __name__ == "__main__":
