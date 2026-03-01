@@ -14,29 +14,45 @@ class Grid:
         self.goal = (rows - 1, cols - 1)
 
     def reset(self):
-        pass
+        self.walls = set()
 
     def generate_maze(self, density):
-        pass
+        self.walls = set()
+        for r in range(self.rows):
+            for c in range(self.cols):
+                if (r, c) != self.start and (r, c) != self.goal:
+                    if random.random() < density:
+                        self.walls.add((r, c))
 
     def toggle_wall(self, r, c):
-        pass
+        if (r, c) == self.start or (r, c) == self.goal:
+            return
+        if (r, c) in self.walls:
+            self.walls.remove((r, c))
+        else:
+            self.walls.add((r, c))
 
     def get_neighbors(self, node):
-        pass
+        r, c = node
+        neighbors = []
+        for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+            nr, nc = r + dr, c + dc
+            if self.is_valid(nr, nc):
+                neighbors.append((nr, nc))
+        return neighbors
 
     def is_valid(self, r, c):
-        pass
+        return 0 <= r < self.rows and 0 <= c < self.cols and (r, c) not in self.walls
 
 
 class Heuristics:
     @staticmethod
     def manhattan(a, b):
-        pass
+        return abs(a[0] - b[0]) + abs(a[1] - b[1])
 
     @staticmethod
     def euclidean(a, b):
-        pass
+        return ((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2) ** 0.5
 
 
 class SearchAlgorithm:
